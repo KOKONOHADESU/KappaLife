@@ -3,7 +3,7 @@
 namespace
 {
 	// アニメーション速度を決める
-	constexpr int kMoveingAnimFrame = 1;
+	constexpr int kMoveingAnimFrame = 12;
 
 #if true	
 	// アニメーション

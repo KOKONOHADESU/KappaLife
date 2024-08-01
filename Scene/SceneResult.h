@@ -2,18 +2,14 @@
 
 #include "SceneBase.h"
 
-class Player;
-class Enemy;
-class Collision;
-
-// メインシーンの管理
-class SceneMain : public SceneBase
+// リザルトシーンの管理
+class SceneResult : public SceneBase
 {
 public:
 	// コンストラクタ
-	SceneMain();
+	SceneResult();
 	// デストラクタ
-	virtual ~SceneMain();
+	virtual ~SceneResult();
 
 	// 初期化
 	void Init() override;
@@ -23,8 +19,4 @@ public:
 	SceneBase* Update()override;
 	// 描画
 	void Draw()override;
-private:
-	Player* m_pPlayer;
-	Enemy* m_pEnemy[5];
-	Collision* m_pColl;
 };

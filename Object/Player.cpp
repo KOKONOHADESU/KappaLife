@@ -1,11 +1,12 @@
 #include "Player.h"
 
+#include "../Util/GameSystem.h"
+
 namespace
 {
 	// アニメーション速度を決める
-	constexpr int kMoveingAnimFrame = 1;
+	constexpr int kMoveingAnimFrame = 12;
 
-#if true	
 	// アニメーション
 	// 上移動
 	constexpr int kAnimWalkUp = 16;
@@ -16,17 +17,20 @@ namespace
 	// 左右移動
 	constexpr int kAnimWalkLeftRight = 20;
 	constexpr int kAnimWalkLeftRightDown = 23;
-#else
+
+	// アイドル状態
 	// 上移動
-	constexpr int kAnimWalkUp = 4;
-	constexpr int kAnimWalkEndUp = 5;
+	constexpr int kAnimIdleUp = 4;
+	constexpr int kAnimIdleEndUp = 5;
 	// 下移動
-	constexpr int kAnimWalkDown = 0;
-	constexpr int kAnimWalkEndDown = 1;
+	constexpr int kAnimIdleDown = 0;
+	constexpr int kAnimIdleEndDown = 1;
 	// 左右移動
-	constexpr int kAnimWalkLeftRight = 8;
-	constexpr int kAnimWalkLeftRightDown = 9;
-#endif
+	constexpr int kAnimIdleLeftRight = 8;
+	constexpr int kAnimIdleEndLeftRight = 9;
+
+	// 半径
+	constexpr float kRadius = 150.0f;
 }
 
 void Player::Init()
@@ -35,18 +39,26 @@ void Player::Init()
 	// メモリへの分割読み込み
 	LoadDivGraph("Data/Texture.png", 28, 4, 7, 320, 320, m_hGraph);
 
-	m_animNo = kAnimWalkLeftRight;
+	// 再生アニメーションの初期化
+	m_animNo = kAnimWalkDown;
 
+	// アニメーションフレームの初期化
 	m_animFrameCount = -1;
 
-	m_rota = 0.0f;
+	// 移動の初期化
+	m_isMove = false;
 
+	// アニメーション関連の初期化
 	for (int i = 0; i < AnimData::MAX; i++)
 	{
 		m_isAnimData[i]  = false;
-		m_isAnimTemp[i]  = false;
 		m_animFirstFrameCount[i] = 0;
 	}
+	m_isAnimData[AnimData::WALKDOWN] = true;
+
+	// 座標の初期化
+	m_posX = GameSystem::kScreenSizeX / 2;
+	m_posY = GameSystem::kScreenSizeY / 2;
 }
 
 void Player::Update()
@@ -54,71 +66,30 @@ void Player::Update()
 	// 移動処理
 	MovingProcess();
 
-	// 上フラグが立っていた場合
-	if (m_isAnimData[AnimData::WALKUP])
-	{
-		// 処理が実行されている間にフレームをカウントする
-		m_animFirstFrameCount[AnimData::WALKUP]++;
-		// 処理が初めの一回だった場合
-		if (m_animFirstFrameCount[AnimData::WALKUP] == 1)
-		{
-			// アニメーション開始位置を指定する
-			m_animNo = kAnimWalkUp;
-		}
-		// アニメーションを管理する
-		AnimControl(kAnimWalkUp, kAnimWalkEndUp);
-	}
-	else
-	{
-		m_animFirstFrameCount[AnimData::WALKUP] = 0;
-	}
-
-	// 左右歩きフラグが立っていた場合
-	if (m_isAnimData[AnimData::WALKLEFTRIGHT])
-	{
-		// 処理が実行されている間にフレームをカウントする
-		m_animFirstFrameCount[AnimData::WALKLEFTRIGHT]++;
-		// 処理が初めの一回だった場合
-		if (m_animFirstFrameCount[AnimData::WALKLEFTRIGHT] == 1)
-		{
-			// アニメーション開始位置を指定する
-			m_animNo = kAnimWalkLeftRight;
-		}
-		// アニメーションを管理する
-		AnimControl(kAnimWalkLeftRight, kAnimWalkLeftRightDown);
-	}
-	else
-	{
-		m_animFirstFrameCount[AnimData::WALKLEFTRIGHT] = 0;
-	}
-
-	// 下歩きフラグが立っていた場合
-	if (m_isAnimData[AnimData::WALKDOWN])
-	{		
-		// 処理が実行されている間にフレームをカウントする
-		m_animFirstFrameCount[AnimData::WALKDOWN]++;
-		// 処理が初めの一回だった場合
-		if (m_animFirstFrameCount[AnimData::WALKDOWN] == 1)
-		{
-			// アニメーション開始位置を指定する
-			m_animNo = kAnimWalkDown;
-		}
-		// アニメーションを管理する
-		AnimControl(kAnimWalkDown, kAnimWalkEndDown);
-	}
-	else
-	{
-		m_animFirstFrameCount[AnimData::WALKDOWN] = 0;
-	}
+	// アニメーション
+	Anim();
 
 	// 画面範囲外処理
 	OutSize();
+
+	m_collPosUpX = m_posX - 320 / 2;
+	m_collPosUpY = m_posY - 320 / 2;
+
+	m_collPosDownX = m_collPosUpX + 320;
+	m_collPosDownY = m_collPosUpY + 320;
 }
 
 void Player::Draw()
 {
+	// 円を描画
+	DrawCircle(m_posX, m_posY, kRadius, 0xff0000, false);
+
+	// 当たり判定確認用
+//	DrawBox(m_collPosUpX, m_collPosUpY, m_collPosDownX, m_collPosDownY, 0xff0000, false);
+
 	// プレイヤー描画
-	DrawRotaGraph(m_posX, m_posY, 1, m_rota, m_hGraph[m_animNo], true, m_dir);
+	DrawRotaGraphF(m_posX, m_posY, 1, 0.0f, m_hGraph[m_animNo], true, m_dir);
+
 }
 
 void Player::End()
@@ -132,32 +103,40 @@ void Player::End()
 
 void Player::MovingProcess()
 {
-	// 初期化
-	m_isAnimData[AnimData::WALKDOWN] = false;
-	m_isAnimData[AnimData::WALKLEFTRIGHT] = false;
-	m_isAnimData[AnimData::WALKUP] = false;
-
+	m_isMove = false;
 	if (CheckHitKey(KEY_INPUT_A))
 	{
-		m_posX -= 10;
+		m_isMove = true;
+		m_posX -= 10.0f;
 		m_dir = true;
 		m_isAnimData[AnimData::WALKLEFTRIGHT] = true;
+		m_isAnimData[AnimData::WALKDOWN] = false;
+		m_isAnimData[AnimData::WALKUP] = false;
 	}
 	else if (CheckHitKey(KEY_INPUT_D))
 	{
-		m_posX += 10;
+		m_isMove = true;
+		m_posX += 10.0f;
 		m_dir = false;
 		m_isAnimData[AnimData::WALKLEFTRIGHT] = true;
+		m_isAnimData[AnimData::WALKDOWN] = false;
+		m_isAnimData[AnimData::WALKUP] = false;
 	}
 	else if (CheckHitKey(KEY_INPUT_W))
 	{
-		m_posY -= 10;
+		m_isMove = true;
+		m_posY -= 10.0f;
 		m_isAnimData[AnimData::WALKUP] = true;
+		m_isAnimData[AnimData::WALKLEFTRIGHT] = false;
+		m_isAnimData[AnimData::WALKDOWN] = false;
 	}
 	else if (CheckHitKey(KEY_INPUT_S))
 	{
-		m_posY += 10;
+		m_isMove = true;
+		m_posY += 10.0f;
 		m_isAnimData[AnimData::WALKDOWN] = true;
+		m_isAnimData[AnimData::WALKLEFTRIGHT] = false;
+		m_isAnimData[AnimData::WALKUP] = false;
 	}
 }
 
@@ -186,7 +165,66 @@ void Player::OutSize()
 	}
 }
 
-void Player::AnimControl(int animNo,int animNoEnd)
+void Player::Anim()
+{
+	// 下歩き
+	AnimChange(AnimData::WALKDOWN,
+		kAnimWalkDown, kAnimWalkEndDown,
+		kAnimIdleDown, kAnimIdleEndDown);
+	// 上歩き
+	AnimChange(AnimData::WALKUP, 
+		kAnimWalkUp, kAnimWalkEndUp,
+		kAnimIdleUp, kAnimIdleEndUp);
+	// 左右歩き
+	AnimChange(AnimData::WALKLEFTRIGHT, 
+		kAnimWalkLeftRight, kAnimWalkLeftRightDown, 
+		kAnimIdleLeftRight, kAnimIdleEndLeftRight);
+}
+
+void Player::AnimChange(AnimData animData, int animNo, int animNoEnd, int animIdle, int animIdleEnd)
+{
+	// 動いていいない場合アイドル状態にする
+	if (!m_isMove)
+	{
+		if (animData == WALKDOWN && m_isAnimData[animData])
+		{
+			// アニメーションを管理する
+			AnimFrameControl(animIdle, animIdleEnd);
+		}
+		if (animData == WALKUP && m_isAnimData[animData])
+		{
+			// アニメーションを管理する
+			AnimFrameControl(animIdle, animIdleEnd);
+		}
+		if (animData == WALKLEFTRIGHT && m_isAnimData[animData])
+		{
+			// アニメーションを管理する
+			AnimFrameControl(animIdle, animIdleEnd);
+		}
+		m_animFirstFrameCount[animData] = 0;
+		return;
+	}
+	// 下歩きフラグが立っていた場合
+	if (m_isAnimData[animData])
+	{
+		// 処理が実行されている間にフレームをカウントする
+		m_animFirstFrameCount[animData]++;
+		// 処理が初めの一回だった場合
+		if (m_animFirstFrameCount[animData] == 1)
+		{
+			// アニメーション開始位置を指定する
+			m_animNo = animNoEnd;
+		}
+		// アニメーションを管理する
+		AnimFrameControl(animNo, animNoEnd);
+	}
+	else
+	{
+		m_animFirstFrameCount[animData] = 0;
+	}
+}
+
+void Player::AnimFrameControl(int animNo,int animNoEnd)
 {
 	// アニメーションのフレームをカウントする
 	m_animFrameCount++;

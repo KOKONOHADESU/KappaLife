@@ -13,6 +13,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_  HINSTANCE hPrevInstance, 
     // 画面サイズの設定
     SetGraphMode(GameSystem::kScreenSizeX, GameSystem::kScreenSizeY, GameSystem::kColorBitDepths);
 
+    // ログ出力を行うか否か
+    SetOutApplicationLogValidFlag(false);
+
     // ダブルバッファモード
     SetDrawScreen(DX_SCREEN_BACK);
 
